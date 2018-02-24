@@ -20,12 +20,13 @@ However, the format can be more complicated than expected.
 
 == Examples
 
-A value may be single-quoted:
+A value may be single-quoted (single quotes can be escaped
+inside a single-quoted string by doubling them):
 
->>> parse "squote='value with \" quotes'"
-Right (fromList [("squote","value with \" quotes")])
+>>> parse "squote='value with '' quotes'"
+Right (fromList [("squote","value with ' quotes")])
 
-Or double-quoted (double-quotes may also be escaped inside 
+Or double-quoted (double quotes can also be escaped inside 
 a double-quoted string by doubling them):
 
 >>> parse "dquote=\"value with \"\" quotes\""
@@ -143,7 +144,7 @@ keyValue = (,) <$> (key <?> "key") <* equals <*> (value <?> "value")
 
     sQuoted =
         Just <$>
-        P.between (char '\'') (char '\'') (many (notChar '\''))
+        P.between (char '\'') (char '\'') (many (notChar '\'' <|> try (char '\'' *> char '\'')))
 
     dQuoted =
         Just <$>
