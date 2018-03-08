@@ -90,6 +90,9 @@ This module implements all of these quirks for you!
 -}
 module Data.ConnectionString
     ( ConnectionString
+    , Data.ConnectionString.toList
+    , keys
+    , values
     , (!)
     , toString
     , parse
@@ -114,12 +117,25 @@ import qualified Text.Megaparsec as P
 import Text.Megaparsec (Parsec, try, Stream, Token, (<?>))
 import Text.Megaparsec.Char (char, notChar, space)
 
--- | A connection string is a set of 'Key's that map to values.
+-- | A connection string is a set of keys that map to values.
 newtype ConnectionString s = ConnectionString (Map.Map (Key s) s)
     deriving (Eq)
 
 instance (Show s, IsString s, IsList s, Item s ~ Char) => Show (ConnectionString s) where
     show = show . toString
+
+toList :: ConnectionString s -> [(s, s)]
+toList (ConnectionString cs) =
+    Map.toList cs
+    & map (\(Key k, v) -> (CI.foldedCase k, v))
+
+keys :: ConnectionString s -> [s]
+keys (ConnectionString cs) =
+    Map.keys cs
+    & map (\(Key k) -> CI.foldedCase k)
+
+values :: ConnectionString s -> [s]
+values (ConnectionString cs) = Map.elems cs
 
 -- | Tries to find the given key in the connection string,
 -- and returns either the value or 'Nothing'.
@@ -134,7 +150,7 @@ newtype Key s = Key (CI.CI s)
 -- | Converts the given string-like type to a key. (Does not fail.)
 toKey :: (CI.FoldCase s, IsList s, Item s ~ Char) => s -> Key s
 toKey s =
-    toList s
+    GHC.Exts.toList s
     & dropWhile isSpace
     & dropWhileEnd isSpace
     & fromList
@@ -153,10 +169,10 @@ toString (ConnectionString cs) =
     where
     encodeKey :: Key s -> String
     encodeKey (Key (CI.foldedCase -> k)) =
-        replace '=' "==" (toList k)
+        replace '=' "==" (GHC.Exts.toList k)
 
     encodeValue :: s -> String
-    encodeValue (toList -> v)
+    encodeValue (GHC.Exts.toList -> v)
         | v == "" = "''"
         | hasDquote && not hasSquote = "'" <> v <> "'"
         | hasSemiColon || hasSpace || hasDquote || hasSquote
