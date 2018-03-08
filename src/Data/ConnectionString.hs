@@ -105,7 +105,7 @@ import Data.Char (isSpace)
 import qualified Data.CaseInsensitive as CI
 import Data.Function ((&))
 import Data.List (dropWhileEnd, intersperse)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Data.Monoid ((<>))
 import Data.String (IsString(..))
 import Data.Void (Void)
