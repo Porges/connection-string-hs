@@ -16,8 +16,8 @@ class.
 The syntax of a connection string appears quite simple at first glance,
 and consists of a list of key-value pairs separated by semicolons:
 
->>> parse "key=value; key2 = value2"
-Right "key=value;key2=value2"
+>>> toList <$> parse "key=value; key2 = value2"
+Right [("key","value"),("key2","value2")]
 
 However, the format can be more complicated than expected.
 
@@ -26,49 +26,54 @@ However, the format can be more complicated than expected.
 A value may be single-quoted (single quotes can be escaped
 inside a single-quoted string by doubling them):
 
->>> parse "squote='value with '' quotes'"
-Right "squote=\"value with ' quotes\""
+>>> toList <$> parse "squote='value with '' quotes'"
+Right [("squote","value with ' quotes")]
 
 Or double-quoted (double quotes can also be escaped inside 
 a double-quoted string by doubling them):
 
->>> parse "dquote=\"value with \"\" quotes\""
-Right "dquote='value with \" quotes'"
+>>> let (Right quoted) = parse "dquote=\"value with \"\" quotes\""
+>>> toList quoted
+[("dquote","value with \" quotes")]
+>>> quoted
+"dquote='value with \" quotes'"
+
+-- ^ TODO: Note that this is for exact compatibility
 
 Quotes of both kinds may be present in keys:
 
->>> parse "'quote\"=value"
-Right "'quote\"=value"
+>>> toList <$> parse "'quote\"=value"
+Right [("'quote\"","value")]
 
 Whitespace is ignored everywhere except in quoted strings and inside keys or unquoted values:
 
->>> parse "; a key = v v\t\n;\t key 2 = \"v v\"\n;\t key 3 = 'v v'; "
-Right "a key=\"v v\";key 2=\"v v\";key 3=\"v v\""
+>>> toList <$> parse "; a key = v v\t\n;\t key 2 = \"v v\"\n;\t key 3 = 'v v'; "
+Right [("a key","v v"),("key 2","v v"),("key 3","v v")]
 
 Equals signs may be escaped in keys by doubling them:
 
->>> parse "1==2=false"
-Right "1==2=false"
+>>> toList <$> parse "1==2=false"
+Right [("1=2","false")]
 
 Keys are case-insensitive (and converted to lower-case on output):
 
->>> parse "BIG=small"
-Right "big=small"
+>>> toList <$> parse "BIG=small"
+Right [("big","small")]
 
 Later values override earlier ones:
 
->>> parse "key=value;key=value2"
-Right "key=value2"
+>>> toList <$> parse "key=value;key=value2"
+Right [("key","value2")]
 
 Assigning a key no value will remove it:
 
->>> parse "key=value;key="
-Right ""
+>>> toList <$> parse "key=value;key="
+Right []
 
 However, you can assign an empty value by giving it a quoted value:
 
->>> parse "key=value;key=''"
-Right "key=''"
+>>> toList <$> parse "key=value;key=''"
+Right [("key","")]
 
 -- TODO ^ there appears to be a bug here in .NET
 
@@ -82,15 +87,15 @@ Left "1:1:\nunexpected '='\nexpecting ';', end of input, or white space\n"
 
 Another quirk is that keys can contain semicolons:
 
->>> parse "key=value;key2;extended=value"
-Right "key=value;key2;extended=value"
+>>> toList <$> parse "key=value;key2;extended=value"
+Right [("key","value"),("key2;extended","value")]
 
 This module implements all of these quirks for you!
 
 -}
 module Data.ConnectionString
     ( ConnectionString
-    , Data.ConnectionString.toList
+    , toList
     , keys
     , values
     , (!)
@@ -109,7 +114,8 @@ import qualified Data.Map.Strict as Map
 import Data.Monoid ((<>))
 import Data.String (IsString(..))
 import Data.Void (Void)
-import GHC.Exts (IsList(..))
+import qualified GHC.Exts as Exts
+import GHC.Exts (IsList(Item))
 
 import Control.Applicative.Combinators (many, sepEndBy, skipMany, skipSome, some, (<|>))
 
@@ -150,10 +156,10 @@ newtype Key s = Key (CI.CI s)
 -- | Converts the given string-like type to a key. (Does not fail.)
 toKey :: (CI.FoldCase s, IsList s, Item s ~ Char) => s -> Key s
 toKey s =
-    GHC.Exts.toList s
+    Exts.toList s
     & dropWhile isSpace
     & dropWhileEnd isSpace
-    & fromList
+    & Exts.fromList
     & CI.mk
     & Key
 
@@ -164,15 +170,15 @@ toString (ConnectionString cs) =
     & map (\(k, v) -> encodeKey k <> "=" <> encodeValue v)
     & intersperse ";" 
     & mconcat
-    & fromList
+    & Exts.fromList
 
     where
     encodeKey :: Key s -> String
     encodeKey (Key (CI.foldedCase -> k)) =
-        replace '=' "==" (GHC.Exts.toList k)
+        replace '=' "==" (Exts.toList k)
 
     encodeValue :: s -> String
-    encodeValue (GHC.Exts.toList -> v)
+    encodeValue (Exts.toList -> v)
         | v == "" = "''"
         | hasDquote && not hasSquote = "'" <> v <> "'"
         | hasSemiColon || hasSpace || hasDquote || hasSquote
